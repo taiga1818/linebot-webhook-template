@@ -22,6 +22,8 @@ def webhook():
 
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image(event):
+    reply = "画像の解析中に問題が発生したにゃん💥"  # デフォルト
+
     try:
         message_content = line_bot_api.get_message_content(event.message.id)
         image_bytes = BytesIO(message_content.content)
@@ -37,7 +39,7 @@ def handle_image(event):
             red_mask = red1 + red2
 
             if red_mask.size == 0:
-                reply = "画像に問題があったにゃん…😿"
+                reply = "画像に赤色を検出できなかったにゃん😿"
             else:
                 red_ratio = np.sum(red_mask > 0) / red_mask.size
                 if red_ratio > 0.02:
@@ -46,8 +48,8 @@ def handle_image(event):
                     reply = "🟢 赤は見つかりませんでした。"
 
     except Exception as e:
-        print(f"画像処理エラー: {e}")
-        reply = "画像の判別中にエラーが出たにゃん💥"
+        print(f"画像処理中の例外: {e}")
+        reply = f"エラーにゃん💥: {e}"
 
     line_bot_api.reply_message(
         event.reply_token,
