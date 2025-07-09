@@ -22,45 +22,51 @@ def webhook():
 
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image(event):
-    reply = "🐾 画像をうまく解析できなかったにゃん。"
-
     try:
         message_content = line_bot_api.get_message_content(event.message.id)
         image_bytes = BytesIO(message_content.content)
         image_array = np.asarray(bytearray(image_bytes.read()), dtype=np.uint8)
-
         img = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
 
-        if img is None:
-            reply = "💢 画像の読み込みに失敗したにゃん。"
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+        # 赤検出
+        red1 = cv2.inRange(hsv, (0, 100, 100), (10, 255, 255))
+        red2 = cv2.inRange(hsv, (160, 100, 100), (180, 255, 255))
+        red_mask = red1 + red2
+        red_ratio = np.sum(red_mask > 0) / red_mask.size
+
+        # 緑検出
+        green_mask = cv2.inRange(hsv, (40, 40, 40), (80, 255, 255))
+        green_ratio = np.sum(green_mask > 0) / green_mask.size
+
+        # 薄い黄色（嫌いな色）検出
+        yellow_mask = cv2.inRange(hsv, (20, 60, 150), (35, 255, 255))
+        yellow_ratio = np.sum(yellow_mask > 0) / yellow_mask.size
+
+        # 判定とメッセージ作成
+        if yellow_ratio > 0.02:
+            reply = "⚠️ 僕の嫌いな色があるにゃん。"
+        elif red_ratio > 0.02 and green_ratio > 0.02:
+            reply = "🔴赤も🟢緑もありますにゃん！"
+        elif red_ratio > 0.02:
+            reply = "🔴赤がありますにゃん！"
+        elif green_ratio > 0.02:
+            reply = "🟢緑がありますにゃん！"
         else:
-            hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-            red1 = cv2.inRange(hsv, (0, 100, 100), (10, 255, 255))
-            red2 = cv2.inRange(hsv, (160, 100, 100), (180, 255, 255))
-            red_mask = cv2.bitwise_or(red1, red2)
+            reply = "🔍赤も緑も見つからないにゃん。"
 
-            total_pixels = red_mask.size if red_mask.size > 0 else 1  # ゼロ除算防止
-            red_pixels = np.sum(red_mask > 0)
-            red_ratio = red_pixels / total_pixels
-
-            if red_ratio > 0.02:
-                reply = "🔴 赤がありますね！"
-            else:
-                reply = "🟢 赤は見つかりませんでした。"
-
-    except Exception as e:
-        print("例外が発生しました:", str(e))
-        reply = "⚠️ 画像処理中にエラーが発生したにゃん。"
-
-    try:
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=reply)
         )
+
     except Exception as e:
-        print("返信エラー:", str(e))
-
-
+        print(f"Error: {e}")
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="⚠️ エラーが起きたにゃん…")
+        )
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
